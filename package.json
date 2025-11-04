@@ -1,7 +1,7 @@
 {
   "name": "api_int",
   "version": "1.0.0",
-  "description": "API de integração de sistemas - Projeto de playlists estilo Spotify",
+  "description": "API de integração de sistemas - Projeto de playlists",
   "main": "server.js",
   "type": "module",
   "scripts": {

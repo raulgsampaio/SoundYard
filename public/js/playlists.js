@@ -590,7 +590,7 @@ async function init() {
   token = await getAccessToken();
   await loadMyPlaylists();
 
-  // opcional: abrir a primeira playlist
+  //abrir a primeira playlist
   const first = myPlaylistsEl.querySelector('li[data-id]');
   if (first) await onSelectPlaylist(first.getAttribute('data-id'));
 }

@@ -11,131 +11,90 @@ const r = Router();
  *     description: Consulta de artistas, álbuns e faixas (público)
  */
 
-/**
- * @openapi
- * /catalog/artists:
- *   get:
- *     tags: [Catalog]
- *     summary: Lista artistas
- *     description: Retorna todos os artistas disponíveis no catálogo (público).
- *     responses:
- *       200:
- *         description: Lista de artistas
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Artist'
- *       500:
- *         description: Erro inesperado
- */
+/** LISTA ARTISTAS */
 r.get('/artists', async (_req, res, next) => {
   try {
     const { data, error } = await supa
       .from('artists')
-      .select('*')
+      .select('id,name')
       .order('name', { ascending: true });
-
     if (error) throw error;
-    res.json(data);
-  } catch (e) {
-    next(e);
-  }
+    res.json(data ?? []);
+  } catch (e) { next(e); }
 });
 
 /**
  * @openapi
- * /catalog/albums:
+ * /catalog/artists/{artistId}/albums:
  *   get:
  *     tags: [Catalog]
- *     summary: Lista álbuns
- *     description: Retorna álbuns do catálogo. Opcionalmente filtre por `artist_id`.
+ *     summary: Lista álbuns de um artista
  *     parameters:
- *       - in: query
- *         name: artist_id
- *         required: false
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Filtra os álbuns por ID do artista
- *     responses:
- *       200:
- *         description: Lista de álbuns
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Album'
- *       500:
- *         description: Erro inesperado
+ *       - in: path
+ *         name: artistId
+ *         required: true
+ *         schema: { type: string, format: uuid }
  */
+r.get('/artists/:artistId/albums', async (req, res, next) => {
+  try {
+    const { artistId } = req.params;
+    const { data, error } = await supa
+      .from('albums')
+      .select('id,title,artist_id')
+      .eq('artist_id', artistId)
+      .order('title', { ascending: true });
+    if (error) throw error;
+    res.json(data ?? []);
+  } catch (e) { next(e); }
+});
+
+/** LISTA ÁLBUNS (com filtro opcional por artist_id) */
 r.get('/albums', async (req, res, next) => {
   try {
     const { artist_id } = req.query;
-
-    let q = supa
-      .from('albums')
-      .select('*')
-      .order('title', { ascending: true });
-
+    let q = supa.from('albums').select('id,title,artist_id').order('title', { ascending: true });
     if (artist_id) q = q.eq('artist_id', artist_id);
-
     const { data, error } = await q;
     if (error) throw error;
-
-    res.json(data);
-  } catch (e) {
-    next(e);
-  }
+    res.json(data ?? []);
+  } catch (e) { next(e); }
 });
 
 /**
  * @openapi
- * /catalog/tracks:
+ * /catalog/albums/{albumId}/tracks:
  *   get:
  *     tags: [Catalog]
- *     summary: Lista faixas
- *     description: Retorna faixas do catálogo. Opcionalmente filtre por `album_id`.
+ *     summary: Lista faixas de um álbum
  *     parameters:
- *       - in: query
- *         name: album_id
- *         required: false
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Filtra as faixas por ID do álbum
- *     responses:
- *       200:
- *         description: Lista de faixas
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Track'
- *       500:
- *         description: Erro inesperado
+ *       - in: path
+ *         name: albumId
+ *         required: true
+ *         schema: { type: string, format: uuid }
  */
+r.get('/albums/:albumId/tracks', async (req, res, next) => {
+  try {
+    const { albumId } = req.params;
+    const { data, error } = await supa
+      .from('tracks')
+      .select('id,title,duration_seconds,album_id')
+      .eq('album_id', albumId)               // ✅ filtro correto por álbum
+      .order('title', { ascending: true });
+    if (error) throw error;
+    res.json(data ?? []);
+  } catch (e) { next(e); }
+});
+
+/** LISTA FAIXAS (com filtro opcional por album_id) */
 r.get('/tracks', async (req, res, next) => {
   try {
     const { album_id } = req.query;
-
-    let q = supa
-      .from('tracks')
-      .select('*')
-      .order('title', { ascending: true });
-
+    let q = supa.from('tracks').select('id,title,duration_seconds,album_id').order('title', { ascending: true });
     if (album_id) q = q.eq('album_id', album_id);
-
     const { data, error } = await q;
     if (error) throw error;
-
-    res.json(data);
-  } catch (e) {
-    next(e);
-  }
+    res.json(data ?? []);
+  } catch (e) { next(e); }
 });
 
 export default r;

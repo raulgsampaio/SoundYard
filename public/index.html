@@ -3,60 +3,83 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>SoundYard — Login</title>
+  <title>SoundYard — Entrar</title>
   <link rel="stylesheet" href="/css/style.css" />
-  <style>
-    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#0f172a; color:#e2e8f0; }
-    .wrap { min-height:100dvh; display:grid; place-items:center; padding:24px; }
-    .card { width:100%; max-width:380px; background:#111827; border-radius:16px; padding:24px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:1px solid #1f2937; }
-    h1 { margin:0 0 8px; font-size:20px; }
-    p { margin:0 0 16px; opacity:.8; }
-    label { display:block; font-size:13px; margin:12px 0 6px; opacity:.9; }
-    input { width:100%; padding:12px 14px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; }
-    button { width:100%; padding:12px 14px; border-radius:12px; border:0; cursor:pointer; margin-top:12px; font-weight:600; background:#2563eb; color:#fff; }
-    button.secondary { background:#334155; }
-    .row { display:flex; gap:10px; }
-    .muted { font-size:12px; opacity:.7; text-align:center; margin-top:10px; }
-    .err { color:#fecaca; font-size:13px; margin-top:8px; min-height:18px; }
-    .ok { color:#86efac; font-size:13px; margin-top:8px; min-height:18px; }
-    .nav { display:flex; justify-content:center; gap:12px; margin-top:16px; }
-    .nav a { color:#93c5fd; font-size:12px; text-decoration:none; }
-  </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>SoundYard</h1>
-      <p>Entre ou crie sua conta para montar suas playlists.</p>
-
-      <label for="email">E-mail</label>
-      <input id="email" type="email" autocomplete="email" placeholder="voce@exemplo.com" />
-
-      <label for="password">Senha</label>
-      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
-
-      <div class="row">
-        <button id="btnLogin">Entrar</button>
-        <button id="btnSignup" class="secondary">Criar conta</button>
-      </div>
-
-      <div id="msg" class="err"></div>
-      <div id="ok" class="ok"></div>
-
-      <div class="nav">
-        <a href="/catalog.html">Explorar Catálogo</a>
-        <a href="/explore.html">Playlists Públicas</a>
-      </div>
-
-      <button id="btnGoApp" style="margin-top:14px; display:none;">Ir para o app</button>
-      <button id="btnLogout" class="secondary" style="display:none;">Sair</button>
-      <div class="muted">Ao entrar, você será redirecionado ao painel.</div>
+  <header class="header">
+    <h1>🎧 SoundYard</h1>
+    <div class="nav">
+      <a href="/explore.html">Explorar</a>
     </div>
+  </header>
+
+  <div class="container" style="max-width:720px;">
+    <section class="card">
+      <h2 class="h2">Entrar</h2>
+      <p class="muted" style="margin-top:0;">Use seu e-mail e senha para continuar.</p>
+
+      <form id="loginForm" class="row" style="flex-direction:column; gap:10px;">
+        <input id="email" type="email" placeholder="E-mail" required />
+        <input id="password" type="password" placeholder="Senha" required />
+        <div class="row" style="gap:10px;">
+          <button type="submit" class="btn primary" data-label="Entrar">Entrar</button>
+          <button type="button" id="goPlaylists" class="btn ghost">Ir para minhas playlists</button>
+        </div>
+      </form>
+
+      <div class="hr"></div>
+      <p class="small">Não tem conta? <a href="#" id="linkSignup">criar agora</a></p>
+    </section>
   </div>
 
-  <!-- Scripts -->
   <script src="/js/config.js"></script>
   <script type="module" src="/js/supabaseClient.js"></script>
-  <script type="module" src="/js/auth.js"></script>
+  <script type="module">
+    import { supa } from './js/supabaseClient.js';
+    const form = document.getElementById('loginForm');
+    const linkSignup = document.getElementById('linkSignup');
+    const goPlaylists = document.getElementById('goPlaylists');
+
+    function setLoading(btn, loading){
+      btn.disabled = !!loading;
+      const base = btn.getAttribute('data-label') || btn.textContent;
+      btn.textContent = loading ? 'Aguarde...' : base;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      const btn = form.querySelector('button[type="submit"]');
+      try {
+        setLoading(btn, true);
+        const { error } = await supa.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        window.location.href = '/playlists.html';
+      } catch (err) {
+        alert(err.message || 'Falha ao entrar.');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    linkSignup.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const email = prompt('Seu e-mail:');
+      const password = prompt('Crie uma senha:');
+      if (!email || !password) return;
+      try {
+        const { error } = await supa.auth.signUp({ email, password });
+        if (error) throw error;
+        alert('Conta criada! Verifique seu e-mail (se necessário) e faça login.');
+      } catch (err) {
+        alert(err.message || 'Falha ao criar conta.');
+      }
+    });
+
+    goPlaylists.addEventListener('click', () => window.location.href = '/playlists.html');
+  </script>
 </body>
 </html>
