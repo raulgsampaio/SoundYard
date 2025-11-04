@@ -22,14 +22,6 @@ const r = Router();
  *     responses:
  *       200:
  *         description: Lista de playlists públicas
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Playlist'
- *       500:
- *         description: Erro inesperado
  */
 r.get('/public', async (_req, res, next) => {
   try {
@@ -48,59 +40,44 @@ r.get('/public', async (_req, res, next) => {
 });
 
 /**
- * @openapi
- * /playlists/{id}/export:
- *   get:
- *     tags: [Playlists]
- *     summary: Exporta uma playlist pública como JSON (download)
- *     description: Exporta o conteúdo de uma playlist pública como JSON. Não requer login.
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string, format: uuid }
- *     responses:
- *       200:
- *         description: JSON exportado da playlist
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id: { type: string, format: uuid }
- *                 name: { type: string }
- *                 is_public: { type: boolean }
- *                 tracks:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id: { type: string, format: uuid }
- *                       title: { type: string }
- *                       duration_seconds: { type: integer }
- *       403:
- *         description: Playlist não é pública
- *       404:
- *         description: Playlist não encontrada
- *       500:
- *         description: Erro inesperado
+ * Exporta uma playlist se for PÚBLICA **ou** se o usuário autenticado for o DONO.
+ * Se não houver token e a playlist for privada -> 401.
+ * Se houver token mas não for dono -> 403.
+ *
+ * GET /playlists/:id/export
  */
 r.get('/:id/export', async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    // tenta identificar usuário pelo token (opcional)
+    let userId = null;
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (token) {
+      const { data: { user }, error } = await supa.auth.getUser(token);
+      if (!error && user) userId = user.id;
+    }
+
+    // busca playlist
     const { data: pl, error: e1 } = await supa
       .from('playlists')
-      .select('id, name, is_public')
+      .select('id, name, is_public, user_id')
       .eq('id', id)
       .single();
 
     if (e1) {
+      // PGRST116 = no rows
       if (e1.code === 'PGRST116') return res.status(404).json({ error: 'Playlist não encontrada' });
       throw e1;
     }
-    if (!pl.is_public) return res.status(403).json({ error: 'Playlist não é pública' });
 
+    const podeExportar = pl.is_public || (userId && userId === pl.user_id);
+    if (!podeExportar) {
+      return res.status(userId ? 403 : 401).json({ error: 'Sem permissão para exportar' });
+    }
+
+    // busca faixas da playlist
     const { data: rows, error: e2 } = await supa
       .from('playlist_tracks')
       .select('track_id, position, tracks:tracks!inner(id, title, duration_seconds, album_id)')
@@ -112,7 +89,7 @@ r.get('/:id/export', async (req, res, next) => {
     const payload = {
       id: pl.id,
       name: pl.name,
-      is_public: true,
+      is_public: pl.is_public,
       tracks: (rows || []).map(t => ({
         id: t.tracks.id,
         title: t.tracks.title,
@@ -128,29 +105,12 @@ r.get('/:id/export', async (req, res, next) => {
   }
 });
 
-/** ------- Rotas autenticadas (dono) ------- */
+/** ------- Rotas autenticadas do dono ------- */
 r.use('/me', supaAuth);
 
 /**
- * @openapi
- * /playlists/me/playlists:
- *   get:
- *     tags: [Playlists]
- *     summary: Lista playlists do usuário autenticado
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Minhas playlists
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items: { $ref: '#/components/schemas/Playlist' }
- *       401:
- *         description: Token ausente/expirado
- *       500:
- *         description: Erro inesperado
+ * GET /playlists/me/playlists
+ * Lista playlists do usuário autenticado
  */
 r.get('/me/playlists', async (req, res, next) => {
   try {
@@ -168,30 +128,9 @@ r.get('/me/playlists', async (req, res, next) => {
 });
 
 /**
- * @openapi
- * /playlists/me/playlists:
- *   post:
- *     tags: [Playlists]
- *     summary: Cria uma playlist
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema: { $ref: '#/components/schemas/PlaylistCreate' }
- *     responses:
- *       201:
- *         description: Playlist criada
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Playlist' }
- *       401:
- *         description: Token ausente/expirado
- *       422:
- *         description: Dados inválidos
- *       500:
- *         description: Erro inesperado
+ * POST /playlists/me/playlists
+ * Cria uma playlist
+ * Body: { name: string }
  */
 r.post('/me/playlists', async (req, res, next) => {
   try {
@@ -214,35 +153,9 @@ r.post('/me/playlists', async (req, res, next) => {
 });
 
 /**
- * @openapi
- * /playlists/me/playlists/{id}:
- *   patch:
- *     tags: [Playlists]
- *     summary: Atualiza uma playlist (nome e/ou is_public)
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema: { $ref: '#/components/schemas/PlaylistPatch' }
- *     responses:
- *       200:
- *         description: Playlist atualizada
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Playlist' }
- *       401:
- *         description: Token ausente/expirado
- *       404:
- *         description: Playlist não encontrada
- *       500:
- *         description: Erro inesperado
+ * PATCH /playlists/me/playlists/:id
+ * Atualiza nome e/ou is_public
+ * Body: { name?: string, is_public?: boolean }
  */
 r.patch('/me/playlists/:id', async (req, res, next) => {
   try {
@@ -271,27 +184,8 @@ r.patch('/me/playlists/:id', async (req, res, next) => {
 });
 
 /**
- * @openapi
- * /playlists/me/playlists/{id}:
- *   delete:
- *     tags: [Playlists]
- *     summary: Remove uma playlist
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string, format: uuid }
- *     responses:
- *       204:
- *         description: Deletada
- *       401:
- *         description: Token ausente/expirado
- *       404:
- *         description: Playlist não encontrada
- *       500:
- *         description: Erro inesperado
+ * DELETE /playlists/me/playlists/:id
+ * Remove uma playlist do usuário
  */
 r.delete('/me/playlists/:id', async (req, res, next) => {
   try {
@@ -315,39 +209,69 @@ r.delete('/me/playlists/:id', async (req, res, next) => {
 });
 
 /**
- * @openapi
- * /playlists/me/playlists/{id}/tracks:
- *   post:
- *     tags: [Playlists]
- *     summary: Adiciona faixa à playlist do usuário
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema: { $ref: '#/components/schemas/PlaylistTrackCreate' }
- *     responses:
- *       201:
- *         description: Faixa adicionada
- *       401:
- *         description: Token ausente/expirado
- *       409:
- *         description: Faixa já presente na playlist
- *       500:
- *         description: Erro inesperado
+ * GET /playlists/me/playlists/:id/detail
+ * Retorna a playlist do usuário com as faixas (para edição)
+ */
+r.get('/me/playlists/:id/detail', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { data: pl, error: e1 } = await supa
+      .from('playlists')
+      .select('id, name, is_public, user_id, created_at, updated_at')
+      .eq('id', id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (e1) {
+      if (e1.code === 'PGRST116') return res.status(404).json({ error: 'Playlist não encontrada' });
+      throw e1;
+    }
+
+    const { data: rows, error: e2 } = await supa
+      .from('playlist_tracks')
+      .select('track_id, position, tracks:tracks!inner(id, title, duration_seconds, album_id)')
+      .eq('playlist_id', id)
+      .order('position', { ascending: true });
+    if (e2) throw e2;
+
+    const payload = {
+      ...pl,
+      tracks: (rows || []).map(t => ({
+        id: t.tracks.id,
+        title: t.tracks.title,
+        duration_seconds: t.tracks.duration_seconds,
+        position: t.position ?? null
+      }))
+    };
+
+    res.json(payload);
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * POST /playlists/me/playlists/:id/tracks
+ * Adiciona uma faixa à playlist do usuário
+ * Body: { track_id: uuid, position?: number }
  */
 r.post('/me/playlists/:id/tracks', async (req, res, next) => {
   try {
     const { id } = req.params; // playlist_id
     const { track_id, position } = req.body;
-
     if (!track_id) return res.status(422).json({ error: 'track_id é obrigatório' });
+
+    // Checagem opcional: garantir que a playlist é do usuário
+    const { data: pl, error: ePl } = await supa
+      .from('playlists')
+      .select('id')
+      .eq('id', id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (ePl) {
+      if (ePl.code === 'PGRST116') return res.status(404).json({ error: 'Playlist não encontrada' });
+      throw ePl;
+    }
 
     const ins = { playlist_id: id, track_id };
     if (Number.isInteger(position)) ins.position = position;
@@ -359,7 +283,7 @@ r.post('/me/playlists/:id/tracks', async (req, res, next) => {
       .single();
 
     if (error) {
-      // conflito de PK (já existe)
+      // 23505 = unique violation (faixa já existe na playlist)
       if (error.code === '23505') return res.status(409).json({ error: 'Faixa já adicionada' });
       throw error;
     }
@@ -371,35 +295,24 @@ r.post('/me/playlists/:id/tracks', async (req, res, next) => {
 });
 
 /**
- * @openapi
- * /playlists/me/playlists/{id}/tracks/{track_id}:
- *   delete:
- *     tags: [Playlists]
- *     summary: Remove faixa da playlist do usuário
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string, format: uuid }
- *       - in: path
- *         name: track_id
- *         required: true
- *         schema: { type: string, format: uuid }
- *     responses:
- *       204:
- *         description: Removida
- *       401:
- *         description: Token ausente/expirado
- *       404:
- *         description: Não encontrada
- *       500:
- *         description: Erro inesperado
+ * DELETE /playlists/me/playlists/:id/tracks/:track_id
+ * Remove uma faixa da playlist do usuário
  */
 r.delete('/me/playlists/:id/tracks/:track_id', async (req, res, next) => {
   try {
     const { id, track_id } = req.params;
+
+    // garante que a playlist é do usuário
+    const { data: pl, error: ePl } = await supa
+      .from('playlists')
+      .select('id')
+      .eq('id', id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (ePl) {
+      if (ePl.code === 'PGRST116') return res.status(404).json({ error: 'Playlist não encontrada' });
+      throw ePl;
+    }
 
     const { data, error } = await supa
       .from('playlist_tracks')
@@ -419,39 +332,9 @@ r.delete('/me/playlists/:id/tracks/:track_id', async (req, res, next) => {
 });
 
 /**
- * @openapi
- * /playlists/me/playlists/{id}/publish:
- *   post:
- *     tags: [Playlists]
- *     summary: Publica/privatiza uma playlist do usuário
- *     description: Define `is_public` para `true` (publica) ou `false` (privatiza).
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: false
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               is_public: { type: boolean, default: true }
- *     responses:
- *       200:
- *         description: Playlist atualizada
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Playlist' }
- *       401:
- *         description: Token ausente/expirado
- *       404:
- *         description: Playlist não encontrada
- *       500:
- *         description: Erro inesperado
+ * POST /playlists/me/playlists/:id/publish
+ * Publica/privatiza uma playlist do usuário
+ * Body: { is_public?: boolean }  // default: true
  */
 r.post('/me/playlists/:id/publish', async (req, res, next) => {
   try {

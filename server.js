@@ -9,6 +9,7 @@ import 'dotenv/config';
 // Rotas da API
 import catalog from './src/routes/catalog.js';
 import playlists from './src/routes/playlists.js';
+import search from './src/routes/search.js';
 
 // Swagger
 import { swaggerServe, swaggerSetup } from './src/docs/swagger.js';
@@ -49,3 +50,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Swagger docs em http://localhost:${PORT}/api-docs`);
   console.log(`Frontend em http://localhost:${PORT}/`);
 });
+
+app.use('/search', search);
