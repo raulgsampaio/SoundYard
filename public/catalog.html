@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SoundYard — Catálogo</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body { background:#0f172a; color:#e2e8f0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+    header { padding:16px; background:#111827; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    header h1 { font-size:18px; margin:0; }
+    header .nav a { color:#93c5fd; text-decoration:none; margin-right:12px; font-size:13px; }
+    main { padding:16px; max-width:1100px; margin:auto; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr 1.2fr; gap:16px; }
+    .card { background:#111827; border:1px solid #1f2937; border-radius:12px; padding:12px; min-height:360px; }
+    h2 { font-size:16px; margin:0 0 8px; }
+    ul { list-style:none; margin:0; padding:0; }
+    li { padding:8px; border-radius:8px; cursor:pointer; }
+    li:hover { background:#0b1220; }
+    li.active { background:#0b1220; border:1px solid #334155; }
+    .muted { opacity:.75; font-size:12px; }
+    .controls { display:flex; gap:10px; align-items:center; margin: 0 0 12px; }
+    select, button { border:none; border-radius:8px; padding:8px 10px; background:#0b1220; color:#e2e8f0; border:1px solid #334155; }
+    button.primary { background:#2563eb; border-color:#2563eb; color:white; }
+    .row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .track { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px; border-radius:8px; }
+    .track .meta { display:flex; flex-direction:column; }
+    .pill { font-size:11px; padding:3px 8px; border-radius:999px; background:#1e293b; border:1px solid #334155; }
+    .warn { color:#fbbf24; font-size:12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎧 SoundYard — Catálogo</h1>
+    <div class="nav">
+      <a href="/">Login</a>
+      <a href="/playlists.html">Minhas Playlists</a>
+      <a href="/explore.html">Playlists Públicas</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="controls">
+      <div class="muted">Destino (opcional):</div>
+      <select id="playlistSelect">
+        <option value="">— selecione uma playlist (requer login) —</option>
+      </select>
+      <span id="authHint" class="warn" style="display:none;">Entre para adicionar faixas às suas playlists.</span>
+      <button id="btnLogout" style="display:none;">Sair</button>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Artistas</h2>
+        <ul id="artists"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Álbuns</h2>
+        <ul id="albums"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Faixas</h2>
+        <ul id="tracks"></ul>
+      </div>
+    </div>
+  </main>
+
+  <!-- Scripts (ordem importa) -->
+  <script src="/js/config.js"></script>
+  <script type="module" src="/js/supabaseClient.js"></script>
+  <script type="module" src="/js/catalog.js"></script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SoundYard — Minhas Playlists</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body { background:#0f172a; color:#e2e8f0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+    header { padding:16px; background:#111827; display:flex; justify-content:space-between; align-items:center; }
+    header h1 { font-size:18px; margin:0; }
+    main { padding:24px; max-width:800px; margin:auto; }
+    .playlist { background:#1e293b; padding:16px; border-radius:10px; margin-bottom:12px; }
+    .playlist h3 { margin:0 0 4px; }
+    button { border:none; cursor:pointer; border-radius:8px; padding:6px 10px; margin-right:6px; font-size:13px; }
+    button.primary { background:#2563eb; color:#fff; }
+    button.danger { background:#ef4444; color:#fff; }
+    button.export { background:#10b981; color:#fff; }
+    #createForm { display:flex; gap:8px; margin-bottom:24px; }
+    #createForm input { flex:1; padding:10px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎧 SoundYard</h1>
+    <div>
+      <button id="btnLogout" data-label="Sair">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <h2>Minhas Playlists</h2>
+    <form id="createForm">
+      <input id="playlistName" placeholder="Nova playlist..." />
+      <button type="submit" class="primary" data-label="Criar">Criar</button>
+    </form>
+
+    <div id="playlists"></div>
+  </main>
+
+  <!-- Scripts -->
+  <script src="/js/config.js"></script>
+  <script type="module" src="/js/supabaseClient.js"></script>
+  <script type="module" src="/js/playlists.js"></script>
+</body>
+</html>
