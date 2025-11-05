@@ -78,7 +78,7 @@ r.get('/albums/:albumId/tracks', async (req, res, next) => {
     const { data, error } = await supa
       .from('tracks')
       .select('id,title,duration_seconds,album_id')
-      .eq('album_id', albumId)               // ✅ filtro correto por álbum
+      .eq('album_id', albumId)               
       .order('title', { ascending: true });
     if (error) throw error;
     res.json(data ?? []);
