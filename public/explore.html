@@ -18,10 +18,31 @@
   </header>
 
   <div class="container">
-    <div class="row" style="margin-bottom:14px;">
+    <!-- Barra de ações -->
+    <div class="row" style="margin-bottom:14px; align-items:center; gap:8px;">
       <button id="btnRefresh" class="btn primary" data-label="Atualizar">Atualizar</button>
+
+      <!-- Hint para usuário não logado (explore.js já referencia #authHint) -->
+      <span id="authHint" class="muted" style="display:none;">
+        Faça login para copiar faixas e importar playlists para o seu catálogo.
+      </span>
+
+      <!-- Select das playlists do usuário (explore.js já referencia #myPlaylistSelect) -->
+      <select id="myPlaylistSelect" class="input" style="display:none; max-width:260px;">
+        <!-- Opções serão carregadas via JS -->
+      </select>
+
       <div class="space"></div>
-      <button id="btnExport" class="btn ok" data-label="Exportar Selecionada" disabled>Exportar Selecionada</button>
+
+      <!-- Novo botão: importar playlist pública para o catálogo do usuário -->
+      <button id="btnImport" class="btn ok" data-label="Adicionar ao Meu Catálogo" disabled>
+        Adicionar ao Meu Catálogo
+      </button>
+
+      <!-- Já existia: exportar JSON da playlist pública selecionada -->
+      <button id="btnExport" class="btn ok" data-label="Exportar Selecionada" disabled>
+        Exportar Selecionada
+      </button>
     </div>
 
     <div class="grid-two">
