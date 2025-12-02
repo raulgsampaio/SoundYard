@@ -4,6 +4,7 @@ const $ = (s) => document.querySelector(s);
 
 const btnRefresh = $('#btnRefresh');
 const btnExport  = $('#btnExport');
+const btnImport  = $('#btnImport');
 const publicList = $('#publicList');
 const tracksEl   = $('#tracks');
 
@@ -12,7 +13,7 @@ const btnLogout  = $('#btnLogout');
 const myPlaylistSelect = $('#myPlaylistSelect');
 
 let token = null;
-let selectedPlaylistId = null; // playlist pública selecionada
+let selectedPlaylistId = null;  // playlist pública selecionada
 let selectedPlaylistObj = null;
 
 // ------------------------ Helpers ------------------------
@@ -45,6 +46,7 @@ async function authed(path, options = {}) {
       ...(options.headers || {})
     }
   });
+
   if (!res.ok) throw new Error(await res.text());
   return res.json().catch(() => null);
 }
@@ -66,7 +68,10 @@ function setActiveList(container, id) {
 function renderPublic(list) {
   publicList.innerHTML = '';
   tracksEl.innerHTML = '<li class="muted">Selecione uma playlist pública.</li>';
+
   btnExport.disabled = true;
+  btnImport.disabled = true;
+
   selectedPlaylistId = null;
   selectedPlaylistObj = null;
 
@@ -91,6 +96,7 @@ function renderPublic(list) {
 
 function renderTracks(payload) {
   tracksEl.innerHTML = '';
+
   if (!payload || !payload.tracks || !payload.tracks.length) {
     tracksEl.innerHTML = '<li class="muted">Playlist vazia.</li>';
     return;
@@ -119,10 +125,12 @@ function renderTracks(payload) {
 async function onPublicClick(p) {
   selectedPlaylistId = p.id;
   selectedPlaylistObj = p;
-  setActiveList(publicList, p.id);
-  btnExport.disabled = false;
 
-  // carrega conteúdo (usando o mesmo payload do export, mas sem baixar arquivo)
+  setActiveList(publicList, p.id);
+
+  btnExport.disabled = false;
+  btnImport.disabled = false;
+
   try {
     const res = await fetch(`/playlists/${p.id}/export`);
     if (!res.ok) throw new Error(await res.text());
@@ -140,10 +148,12 @@ tracksEl.addEventListener('click', async (e) => {
 
   const trackId = btn.dataset.id;
   const myPlId = myPlaylistSelect.value;
+
   if (!token) return alert('Faça login.');
   if (!myPlId) return alert('Selecione uma das suas playlists.');
 
   setLoading(btn, true);
+
   try {
     await authed(`/playlists/me/playlists/${myPlId}/tracks`, {
       method: 'POST',
@@ -163,6 +173,7 @@ btnRefresh.addEventListener('click', async () => {
 
 btnExport.addEventListener('click', async () => {
   if (!selectedPlaylistId) return alert('Selecione uma playlist pública.');
+
   try {
     const res = await fetch(`/playlists/${selectedPlaylistId}/export`);
     if (!res.ok) throw new Error(await res.text());
@@ -178,10 +189,39 @@ btnExport.addEventListener('click', async () => {
   }
 });
 
+/* ------------------ NOVO BOTÃO: IMPORTAR PLAYLIST ------------------ */
+
+btnImport.addEventListener('click', async () => {
+  if (!selectedPlaylistId) return alert('Selecione uma playlist pública.');
+  if (!token) return alert('Faça login.');
+
+  setLoading(btnImport, true);
+
+  try {
+    const result = await authed(`/playlists/public/${selectedPlaylistId}/import`, {
+      method: 'POST'
+    });
+
+    alert(`Playlist adicionada ao seu catálogo: ${result.name}`);
+
+    // atualizar select das playlists pessoais
+    await loadUserPlaylistsIfLogged();
+
+  } catch (err) {
+    console.error('Erro ao importar playlist:', err);
+    alert('Erro ao importar playlist: ' + err.message);
+  }
+
+  setLoading(btnImport, false);
+});
+
+/* -------------------------------------------------------------------- */
+
 // ------------------------ Sessão ------------------------
 
 async function loadUserPlaylistsIfLogged() {
   const { data: { session } } = await supa.auth.getSession();
+
   if (!session) {
     authHint.style.display = 'inline';
     btnLogout.style.display = 'none';
@@ -189,6 +229,7 @@ async function loadUserPlaylistsIfLogged() {
     token = null;
     return null;
   }
+
   authHint.style.display = 'none';
   btnLogout.style.display = 'inline-block';
   myPlaylistSelect.style.display = 'inline-block';
@@ -199,19 +240,25 @@ async function loadUserPlaylistsIfLogged() {
     const res = await fetch('/playlists/me/playlists', {
       headers: { Authorization: `Bearer ${token}` }
     });
+
     if (!res.ok) throw new Error(await res.text());
+
     const mine = await res.json();
 
+    // Preenche o select
     myPlaylistSelect.innerHTML = `<option value="">— copiar faixa para minha playlist —</option>`;
+
     for (const p of mine) {
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = p.name;
       myPlaylistSelect.appendChild(opt);
     }
+
   } catch (e) {
     console.error('Erro ao carregar minhas playlists:', e);
   }
+
   return session;
 }
 

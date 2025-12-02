@@ -40,6 +40,85 @@ r.get('/public', async (_req, res, next) => {
 });
 
 /**
+ * @openapi
+ * /playlists/public/{id}/import:
+ *   post:
+ *     tags: [Playlists]
+ *     summary: Copia uma playlist pública para o catálogo do usuário autenticado
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: ID da playlist pública
+ *     responses:
+ *       201:
+ *         description: Playlist copiada com sucesso
+ *       404:
+ *         description: Playlist pública não encontrada
+ */
+r.post('/public/:id/import', supaAuth, async (req, res, next) => {
+  try {
+    const publicId = req.params.id;
+
+    // 1. Buscar playlist pública
+    const { data: pub, error: errPub } = await supa
+      .from('playlists')
+      .select('*')
+      .eq('id', publicId)
+      .eq('is_public', true)
+      .single();
+
+    if (errPub || !pub) {
+      return res.status(404).json({ error: 'Playlist pública não encontrada' });
+    }
+
+    // 2. Carregar as faixas da playlist pública
+    const { data: tracks, error: errTracks } = await supa
+      .from('playlist_tracks')
+      .select('track_id')
+      .eq('playlist_id', publicId)
+      .order('position', { ascending: true });
+
+    if (errTracks) throw errTracks;
+
+    // 3. Criar nova playlist para o usuário
+    const { data: newPl, error: errNew } = await supa
+      .from('playlists')
+      .insert({
+        user_id: req.user.id,
+        name: pub.name + ' (cópia)',
+        is_public: false,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (errNew) throw errNew;
+
+    // 4. Inserir faixas copiadas na nova playlist
+    if (tracks.length) {
+      const rows = tracks.map((t, idx) => ({
+        playlist_id: newPl.id,
+        track_id: t.track_id,
+        position: idx
+      }));
+
+      const { error: errInsert } = await supa
+        .from('playlist_tracks')
+        .insert(rows);
+
+      if (errInsert) throw errInsert;
+    }
+
+    res.status(201).json(newPl);
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
  * Exporta uma playlist se for PÚBLICA **ou** se o usuário autenticado for o DONO.
  * Se não houver token e a playlist for privada -> 401.
  * Se houver token mas não for dono -> 403.
@@ -67,7 +146,6 @@ r.get('/:id/export', async (req, res, next) => {
       .single();
 
     if (e1) {
-      // PGRST116 = no rows
       if (e1.code === 'PGRST116') return res.status(404).json({ error: 'Playlist não encontrada' });
       throw e1;
     }
@@ -77,7 +155,7 @@ r.get('/:id/export', async (req, res, next) => {
       return res.status(userId ? 403 : 401).json({ error: 'Sem permissão para exportar' });
     }
 
-    // busca faixas da playlist
+    // busca faixas
     const { data: rows, error: e2 } = await supa
       .from('playlist_tracks')
       .select('track_id, position, tracks:tracks!inner(id, title, duration_seconds, album_id)')
@@ -110,7 +188,6 @@ r.use('/me', supaAuth);
 
 /**
  * GET /playlists/me/playlists
- * Lista playlists do usuário autenticado
  */
 r.get('/me/playlists', async (req, res, next) => {
   try {
@@ -129,8 +206,6 @@ r.get('/me/playlists', async (req, res, next) => {
 
 /**
  * POST /playlists/me/playlists
- * Cria uma playlist
- * Body: { name: string }
  */
 r.post('/me/playlists', async (req, res, next) => {
   try {
@@ -154,8 +229,6 @@ r.post('/me/playlists', async (req, res, next) => {
 
 /**
  * PATCH /playlists/me/playlists/:id
- * Atualiza nome e/ou is_public
- * Body: { name?: string, is_public?: boolean }
  */
 r.patch('/me/playlists/:id', async (req, res, next) => {
   try {
@@ -185,7 +258,6 @@ r.patch('/me/playlists/:id', async (req, res, next) => {
 
 /**
  * DELETE /playlists/me/playlists/:id
- * Remove uma playlist do usuário
  */
 r.delete('/me/playlists/:id', async (req, res, next) => {
   try {
@@ -210,7 +282,6 @@ r.delete('/me/playlists/:id', async (req, res, next) => {
 
 /**
  * GET /playlists/me/playlists/:id/detail
- * Retorna a playlist do usuário com as faixas (para edição)
  */
 r.get('/me/playlists/:id/detail', async (req, res, next) => {
   try {
@@ -252,16 +323,15 @@ r.get('/me/playlists/:id/detail', async (req, res, next) => {
 
 /**
  * POST /playlists/me/playlists/:id/tracks
- * Adiciona uma faixa à playlist do usuário
- * Body: { track_id: uuid, position?: number }
  */
 r.post('/me/playlists/:id/tracks', async (req, res, next) => {
   try {
-    const { id } = req.params; // playlist_id
+    const { id } = req.params;
     const { track_id, position } = req.body;
+
     if (!track_id) return res.status(422).json({ error: 'track_id é obrigatório' });
 
-    // Checagem opcional: garantir que a playlist é do usuário
+    // garantir que a playlist é do usuário
     const { data: pl, error: ePl } = await supa
       .from('playlists')
       .select('id')
@@ -283,7 +353,6 @@ r.post('/me/playlists/:id/tracks', async (req, res, next) => {
       .single();
 
     if (error) {
-      // 23505 = unique violation (faixa já existe na playlist)
       if (error.code === '23505') return res.status(409).json({ error: 'Faixa já adicionada' });
       throw error;
     }
@@ -296,19 +365,18 @@ r.post('/me/playlists/:id/tracks', async (req, res, next) => {
 
 /**
  * DELETE /playlists/me/playlists/:id/tracks/:track_id
- * Remove uma faixa da playlist do usuário
  */
 r.delete('/me/playlists/:id/tracks/:track_id', async (req, res, next) => {
   try {
     const { id, track_id } = req.params;
 
-    // garante que a playlist é do usuário
     const { data: pl, error: ePl } = await supa
       .from('playlists')
       .select('id')
       .eq('id', id)
       .eq('user_id', req.user.id)
       .single();
+
     if (ePl) {
       if (ePl.code === 'PGRST116') return res.status(404).json({ error: 'Playlist não encontrada' });
       throw ePl;
@@ -333,8 +401,6 @@ r.delete('/me/playlists/:id/tracks/:track_id', async (req, res, next) => {
 
 /**
  * POST /playlists/me/playlists/:id/publish
- * Publica/privatiza uma playlist do usuário
- * Body: { is_public?: boolean }  // default: true
  */
 r.post('/me/playlists/:id/publish', async (req, res, next) => {
   try {
